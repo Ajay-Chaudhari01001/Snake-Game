@@ -1,181 +1,178 @@
-import { useState, useEffect } from "react";
-import "./App.css";
+import { useEffect, useState } from "react";
+import useSound from "use-sound";
 import snakeEatSound from "./assets/eat2.mp3";
 import gameOverSound from "./assets/loss.wav";
+import "./App.css";
 
-function App() {
-  const generateRandomFoodPosition = () => {
-    return {
-      x: Math.floor(Math.random() * 15),
-      y: Math.floor(Math.random() * 15),
-    };
-  };
+const App = () => {
+  const totalGridSize = 20;
+  const initialSnakePosition = [
+    { x: totalGridSize / 2, y: totalGridSize / 2 },
+    { x: totalGridSize / 2 + 1, y: totalGridSize / 2 },
+    { x: totalGridSize / 2 + 1, y: totalGridSize / 2 },
+    { x: totalGridSize / 2 + 1, y: totalGridSize / 2 },
+  ];
 
-  const initialSnake = [];
-  for (let i = 0; i < 5; i++) {
-    initialSnake.push({ x: 1, y: 13 - i }); // Bottom left corner
+  const [food, setFood] = useState({ x: 5, y: 5 });
+  const [snake, setSnake] = useState(initialSnakePosition);
+  const [direction, setDirection] = useState("right");
+  const [score, setScore] = useState(0);
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [isGameOverSoundPlayed, setIsGameOverSoundPlayed] = useState(false);
+
+  const [playSnakeEatSound] = useSound(snakeEatSound);
+  const [playGameOverSound] = useSound(gameOverSound);
+
+  function renderBoard() {
+    const cellArray = [];
+    for (let row = 0; row < totalGridSize; row++) {
+      for (let col = 0; col < totalGridSize; col++) {
+        let className = "cell";
+        const isFood = food.x === row && food.y === col;
+        const isSnake = snake.some((ele) => ele.x === row && ele.y === col);
+        const isSnakeHead = snake[0].x === row && snake[0].y === col;
+
+        if (isFood) {
+          className += " food";
+        }
+
+        if (isSnake) {
+          className += " snake";
+        }
+
+        if (isSnakeHead) {
+          className += " snakeHead";
+        }
+
+        const cell = <div className={className} key={`${row} - ${col}`}></div>;
+        cellArray.push(cell);
+      }
+    }
+    return cellArray;
   }
 
-  const [snake, setSnake] = useState(initialSnake);
-  const [food, setFood] = useState(generateRandomFoodPosition());
-  const [direction, setDirection] = useState("right");
-  const [gameInterval, setGameInterval] = useState(null);
-  const [isGameStarted, setIsGameStarted] = useState(false);
-  const [isGameOver, setIsGameOver] = useState(false);
-
-  const snakeEatSoundRef = new Audio(snakeEatSound);
-  const gameOverAudioRef = new Audio(gameOverSound);
-
-
-  useEffect(() => {
-    const handleKeyPress = (e) => {
-      if (!isGameStarted) {
-        return;
-      }
-
-      if (e.key === "ArrowRight" && direction !== "left") {
-        setDirection("right");
-      } else if (e.key === "ArrowLeft" && direction !== "right") {
-        setDirection("left");
-      } else if (e.key === "ArrowUp" && direction !== "down") {
-        setDirection("up");
-      } else if (e.key === "ArrowDown" && direction !== "up") {
-        setDirection("down");
-      }
-    };
-
-    console.log("direction ", direction)
-
-    document.addEventListener("keydown", handleKeyPress);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyPress);
-    };
-  }, [isGameStarted, direction]);
-
-  useEffect(() => {
-    if (isGameStarted) {
-      const gameInterval = setInterval(moveSnake, 500);
-      setGameInterval(gameInterval);
-    }
-
-    return () => {
-      if (gameInterval) {
-        clearInterval(gameInterval);
-      }
-    };
-  }, [isGameStarted]);
-
-  const startGame = () => {
-    setIsGameStarted(true);
+  function startGame() {
     setIsGameOver(false);
-    moveSnake(); // Start the game by moving the snake initially.
-  };
-
-  const restartGame = () => {
-    if (gameInterval) {
-      clearInterval(gameInterval);
-    }
-    setSnake(initialSnake);
-    setFood(generateRandomFoodPosition());
+    setIsGameOverSoundPlayed(false);
+    setSnake(initialSnakePosition);
     setDirection("right");
-    setGameInterval(null);
-    setIsGameStarted(false);
-    setIsGameOver(false);
-  };
+    setScore(0);
+    randomFood();
+  }
 
-  const endGame = () => {
-    gameOverAudioRef.play();
-    if (gameInterval) {
-      clearInterval(gameInterval);
-    }
+  function gameOver() {
     setIsGameOver(true);
-  };
-
-  const moveSnake = () => {
-    if (isGameOver) {
-      return;
+    if (!isGameOverSoundPlayed) {
+      playGameOverSound();
+      setIsGameOverSoundPlayed(true);
     }
+  }
 
-    const head = { ...snake[0] };
+  function retryGame() {
+    startGame();
+  }
 
-    if (direction === "right") {
-      head.x += 1;
-    } else if (direction === "left") {
-      head.x -= 1;
-    } else if (direction === "up") {
-      head.y -= 1;
-    } else if (direction === "down") {
-      head.y += 1;
+  function randomFood() {
+    const xPosition = Math.floor(Math.random() * totalGridSize);
+    const yPosition = Math.floor(Math.random() * totalGridSize);
+
+    setFood({ x: xPosition, y: yPosition });
+  }
+
+  function updateDirection(e) {
+    const key = e.code;
+
+    switch (key) {
+      case "ArrowUp":
+        if (direction !== "down") setDirection("up");
+        break;
+      case "ArrowDown":
+        if (direction !== "up") setDirection("down");
+        break;
+      case "ArrowLeft":
+        if (direction !== "right") setDirection("left");
+        break;
+      case "ArrowRight":
+        if (direction !== "left") setDirection("right");
+        break;
+    }
+  }
+
+  function updateGame() {
+    const newSnake = [...snake];
+
+    switch (direction) {
+      case "left":
+        newSnake.unshift({ x: newSnake[0].x, y: newSnake[0].y - 1 });
+        break;
+      case "right":
+        newSnake.unshift({ x: newSnake[0].x, y: newSnake[0].y + 1 });
+        break;
+      case "up":
+        newSnake.unshift({ x: newSnake[0].x - 1, y: newSnake[0].y });
+        break;
+      case "down":
+        newSnake.unshift({ x: newSnake[0].x + 1, y: newSnake[0].y });
+        break;
     }
 
     if (
-      head.x < 0 ||
-      head.x >= 15 ||
-      head.y < 0 ||
-      head.y >= 15 ||
-      snake.some((cell) => cell.x === head.x && cell.y === head.y)
+      newSnake[0].x < 0 ||
+      newSnake[0].x >= totalGridSize ||
+      newSnake[0].y < 0 ||
+      newSnake[0].y >= totalGridSize
     ) {
-      endGame();
+      gameOver();
       return;
     }
 
-    snake.unshift(head);
+    const isBit = newSnake
+      .slice(1)
+      .some((ele) => ele.x === newSnake[0].x && ele.y === newSnake[0].y);
 
-    if (head.x === food.x && head.y === food.y) {
-      generateNewFood();
-      snakeEatSoundRef.play();
+    if (isBit) {
+      gameOver();
+      return;
+    }
+
+    const isAteFood = newSnake[0].x === food.x && newSnake[0].y === food.y;
+
+    if (isAteFood) {
+      playSnakeEatSound();
+      setScore((prev) => prev + 1);
+      randomFood();
     } else {
-      snake.pop();
+      newSnake.pop();
     }
 
-    setSnake([...snake]);
-  };
-
-  const generateNewFood = () => {
-    const newFood = generateRandomFoodPosition();
-    setFood(newFood);
-  };
-
-  const grid = [];
-  for (let row = 0; row < 15; row++) {
-    for (let col = 0; col < 15; col++) {
-      const isSnakeCell = snake.some(
-        (cell) => cell.x === col && cell.y === row
-      );
-      const isFoodCell = food.x === col && food.y === row;
-
-      grid.push(
-        <div
-          key={`${col}-${row}`}
-          className={`cell ${isSnakeCell ? "snake" : ""} ${
-            isFoodCell ? "food" : ""
-          }`}
-        ></div>
-      );
-    }
+    setSnake(newSnake);
   }
 
+  useEffect(() => {
+    const interval = setInterval(updateGame, 500);
+
+    return () => clearInterval(interval);
+  });
+
+  useEffect(() => {
+    document.addEventListener("keydown", updateDirection);
+    return () => document.removeEventListener("keydown", updateDirection);
+  });
+
   return (
-    <>
-      {isGameStarted ? (
-        <div>
-          <div className="game-grid">{grid}</div>
-          {isGameOver && (
-            <div className="game-over">
-              <span>Game Over! </span>
-              <button onClick={restartGame}>Restart</button>
-            </div>
-          )}
-        </div>
+    <div className="container">
+      {isGameOver ? (
+        <button onClick={retryGame}>Retry</button>
       ) : (
-        <div className="start-modal">
-          <h2>Welcome to Nokia Cell Phone Snake Game</h2>
-          <button onClick={startGame}>START</button>
-        </div>
+        <>
+          <div className="score">
+            Score : <span>{score}</span>
+          </div>
+          <div className="board">{renderBoard()}</div>
+        </>
       )}
-    </>
+    </div>
   );
-}
+};
 
 export default App;
